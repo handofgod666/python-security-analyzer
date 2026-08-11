@@ -6,6 +6,7 @@ A comprehensive static analysis tool for detecting security vulnerabilities in P
 
 ### Core Detection
 - **SQL Injection**: Detects unsafe SQL queries through string concatenation, f-strings, and .format()
+- **Command Injection**: Identifies unsafe command execution with user input (os.system, subprocess, eval, exec)
 - **Data Flow Tracking**: Traces tainted data from input sources to dangerous sinks
 - **Framework Support**: Specialized analyzers for Flask, Django, FastAPI, and SQLAlchemy
 - **Smart Analysis**: Distinguishes between safe parameterized queries and vulnerable patterns
@@ -49,24 +50,40 @@ python -m sqli_detector scan ./src
 
 ### Vulnerable Code (Detected)
 ```python
-# Direct user input in SQL
+# SQL Injection - Direct user input in SQL
 user_id = input("Enter ID: ")
 query = f"SELECT * FROM users WHERE id = {user_id}"  # ❌ Vulnerable
 
-# Flask request data
+# SQL Injection - Flask request data
 username = request.args.get('username')
 cursor.execute("SELECT * FROM users WHERE name = '" + username + "'")  # ❌ Vulnerable
+
+# Command Injection - os.system with user input
+filename = input("Enter filename: ")
+os.system(f"cat {filename}")  # ❌ Vulnerable
+
+# Command Injection - subprocess with shell=True
+user_input = input("Command: ")
+subprocess.run(f"ls {user_input}", shell=True)  # ❌ Vulnerable
 ```
 
 ### Safe Code (Recommended)
 ```python
-# Parameterized queries
+# SQL - Parameterized queries
 user_id = input("Enter ID: ")
 cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))  # ✅ Safe
 
-# SQLAlchemy bound parameters
+# SQL - SQLAlchemy bound parameters
 query = text("SELECT * FROM users WHERE id = :id")
 session.execute(query, {"id": user_id})  # ✅ Safe
+
+# Commands - subprocess with list arguments
+filename = input("Enter filename: ")
+subprocess.run(["cat", filename])  # ✅ Safe
+
+# Commands - subprocess with shell=False
+user_input = input("Search: ")
+subprocess.run(["grep", user_input, "file.txt"], shell=False)  # ✅ Safe
 ```
 
 ## 🔧 CI/CD Integration
@@ -94,10 +111,12 @@ Run the comprehensive test suite:
 python tests/run_tests.py
 ```
 
-All 16 tests cover:
-- Basic pattern detection (f-strings, concatenation, .format())
+All 31 tests cover:
+- Basic SQL injection pattern detection (f-strings, concatenation, .format())
 - Data flow analysis (taint tracking)
 - SQLAlchemy-specific patterns
+- Command injection detection (os.system, subprocess, eval, exec)
+- Safe pattern recognition (parameterized queries, subprocess lists)
 - CLI functionality
 
 ## 📊 How It Works
@@ -116,13 +135,13 @@ All 16 tests cover:
 - [x] SQLAlchemy support
 - [x] CI/CD integration
 - [x] Comprehensive test suite
+- [x] **Command Injection Detection**: Unsafe `os.system()`, `subprocess`, `eval()`, `exec()` detection
 
 ### Planned 🚧
-- [ ] **Command Injection Detection**: Detect unsafe `os.system()`, `subprocess.call()` usage
 - [ ] **Path Traversal Detection**: Find directory traversal vulnerabilities
 - [ ] **XSS Detection**: Identify cross-site scripting risks in templates
 - [ ] **SSRF Detection**: Detect Server-Side Request Forgery patterns
-- [ ] **Insecure Deserialization**: Find `pickle.loads()` and `eval()` misuse
+- [ ] **Insecure Deserialization**: Find `pickle.loads()` misuse
 - [ ] **Hardcoded Secrets**: Scan for API keys, passwords, tokens in code
 - [ ] **Cryptographic Issues**: Detect weak encryption algorithms
 - [ ] **Configuration Analysis**: Check for debug mode, insecure settings

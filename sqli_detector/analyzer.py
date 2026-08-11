@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from pathlib import Path
 from .dataflow import DataFlowAnalyzer, TaintSource
 from .sqlalchemy_analyzer import SQLAlchemyAnalyzer
+from .command_injection_analyzer import CommandInjectionAnalyzer
 
 
 class SQLInjectionFinding:
@@ -44,6 +45,9 @@ class SQLInjectionAnalyzer(ast.NodeVisitor):
 
             # Run SQLAlchemy-specific analysis
             self._run_sqlalchemy_analysis()
+
+            # Run command injection analysis
+            self._run_command_injection_analysis()
         except SyntaxError as e:
             print(f"Warning: Could not parse {self.filename}: {e}")
         return self.findings
@@ -74,6 +78,20 @@ class SQLInjectionAnalyzer(ast.NodeVisitor):
                 code=code_line,
                 vulnerability_type=vuln_type,
                 recommendation="Use SQLAlchemy bound parameters: text('SELECT * FROM users WHERE id = :id') with params={'id': value}"
+            ))
+
+    def _run_command_injection_analysis(self):
+        """Run command injection analysis."""
+        ci_analyzer = CommandInjectionAnalyzer(self.filename, self.source_code)
+        vulnerabilities = ci_analyzer.analyze()
+
+        for lineno, code_line, vuln_type in vulnerabilities:
+            self.findings.append(SQLInjectionFinding(
+                filename=self.filename,
+                line=lineno,
+                code=code_line,
+                vulnerability_type=vuln_type,
+                recommendation="Use subprocess with list arguments instead of shell=True: subprocess.run(['command', user_input])"
             ))
 
     def _is_sql_context(self, s: str) -> bool:
